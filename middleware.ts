@@ -35,27 +35,27 @@ export async function middleware(request: NextRequest) {
     if (!user) {
       return NextResponse.redirect(new URL('/admin/login', request.url))
     }
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
+    const { data: role } = await supabase.rpc('get_my_role')
 
-    if (profile?.role !== 'admin') {
+    if (role !== 'admin') {
       return NextResponse.redirect(new URL('/', request.url))
     }
   }
 
   // /visualizer requires approved=true (admin bypasses)
   if (pathname.startsWith('/visualizer') && user) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('approved, role')
-      .eq('id', user.id)
-      .single()
+    const { data: role } = await supabase.rpc('get_my_role')
 
-    if (!profile?.approved && profile?.role !== 'admin') {
-      return NextResponse.redirect(new URL('/dashboard', request.url))
+    if (role !== 'admin') {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('approved')
+        .eq('id', user.id)
+        .single()
+
+      if (!profile?.approved) {
+        return NextResponse.redirect(new URL('/dashboard', request.url))
+      }
     }
   }
 
