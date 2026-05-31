@@ -105,10 +105,12 @@ export async function renderFlooring(input: {
 
   if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`)
 
-  // 6. Return public URL
-  const { data: { publicUrl } } = supabase.storage
+  // 6. Return signed URL (valid 1 year — renders bucket is private)
+  const { data: signedData, error: signedError } = await supabase.storage
     .from('renders')
-    .getPublicUrl(resultPath)
+    .createSignedUrl(resultPath, 60 * 60 * 24 * 365)
 
-  return publicUrl
+  if (signedError || !signedData) throw new Error('Failed to create signed URL for result')
+
+  return signedData.signedUrl
 }
