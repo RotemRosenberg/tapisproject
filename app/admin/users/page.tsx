@@ -1,22 +1,17 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
-import { createClient } from '@/lib/supabase/client'
 import UserRow from '@/components/admin/UserRow'
 import type { Profile } from '@/lib/types'
 import Link from 'next/link'
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<Profile[]>([])
-  const supabase = createClient()
 
   const loadUsers = useCallback(async () => {
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('role', 'user')
-      .order('created_at', { ascending: false })
-    setUsers(data ?? [])
-  }, [supabase])
+    const res = await fetch('/api/admin/users')
+    const json = await res.json()
+    setUsers(json.users ?? [])
+  }, [])
 
   useEffect(() => { loadUsers() }, [loadUsers])
 
