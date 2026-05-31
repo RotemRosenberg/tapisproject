@@ -8,8 +8,8 @@ vi.mock('next/image', () => ({
 }))
 
 const mockProducts: Product[] = [
-  { id: '1', name: 'אלון טבעי', category: 'parquet', image_url: '/oak.jpg', created_at: '' },
-  { id: '2', name: "ווינג' כהה", category: 'parquet', image_url: '/wenge.jpg', created_at: '' },
+  { id: '1', name: 'אלון טבעי', category: 'parquet', image_url: '/oak.jpg', model_id: '2410', created_at: '' },
+  { id: '2', name: "ווינג' כהה", category: 'parquet', image_url: '/wenge.jpg', model_id: null, created_at: '' },
 ]
 
 describe('ProductGrid', () => {

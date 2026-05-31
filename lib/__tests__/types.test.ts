@@ -20,6 +20,7 @@ describe('types', () => {
       name: 'Oak Natural',
       category: 'parquet',
       image_url: 'https://example.com/img.jpg',
+      model_id: '2410',
       created_at: new Date().toISOString(),
     }
     expect(product.category).toBe('parquet')

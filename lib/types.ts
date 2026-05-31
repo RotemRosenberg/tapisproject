@@ -15,6 +15,7 @@ export interface Product {
   name: string
   category: ProductCategory
   image_url: string
+  model_id: string | null
   created_at: string
 }
 

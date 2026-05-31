@@ -1,10 +1,100 @@
-export interface AIRenderInput {
-  roomImageUrl: string
-  flooringImageUrl: string
+import OpenAI from 'openai'
+import { toFile } from 'openai/uploads'
+import { createAdminClient } from './supabase/admin'
+
+interface ModelJson {
+  model_id: string
+  model_name: string
+  collection: string
+  required_prompt_line: string
+  product: {
+    plank_width_mm: number
+    plank_length_mm: number
+    finish: string
+  }
 }
 
-export async function renderFlooring(input: AIRenderInput): Promise<string> {
-  // Replace this function body when the AI provider is chosen.
-  // Must return a public URL pointing to the result image.
-  throw new Error('AI service not yet configured. Implement renderFlooring() in lib/ai.ts')
+function buildPrompt(model: ModelJson, promptText: string): string {
+  return `${promptText}
+
+---
+
+MODEL IDENTITY:
+ID: ${model.model_id}
+NAME: ${model.model_name}
+COLLECTION: ${model.collection}
+REQUIRED SIGNAL: ${model.required_prompt_line}
+
+PLANK DIMENSIONS: ${model.product.plank_width_mm}mm x ${model.product.plank_length_mm}mm
+FINISH: ${model.product.finish}
+
+---
+
+Image 1 = room photo. Source of the room. Replace ONLY the floor.
+Image 2 = approved master reference. LOCKED material source of truth. Match this exactly.
+`
+}
+
+export async function renderFlooring(input: {
+  roomImageUrl: string
+  modelId: string
+}): Promise<string> {
+  if (!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY is not configured')
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  const supabase = createAdminClient()
+
+  // 1. Load model assets from Supabase Storage
+  const [modelJsonRes, promptRes, masterRes] = await Promise.all([
+    supabase.storage.from('models').download(`${input.modelId}/model.json`),
+    supabase.storage.from('models').download(`${input.modelId}/prompt.txt`),
+    supabase.storage.from('models').download(`${input.modelId}/approved_master.jpg`),
+  ])
+
+  if (modelJsonRes.error) throw new Error(`Model not found: ${input.modelId}`)
+  if (promptRes.error) throw new Error(`Prompt not found for model: ${input.modelId}`)
+  if (masterRes.error) throw new Error(`Master image not found for model: ${input.modelId}`)
+
+  const modelJson: ModelJson = JSON.parse(await modelJsonRes.data.text())
+  const promptText = await promptRes.data.text()
+  const masterBuffer = Buffer.from(await masterRes.data.arrayBuffer())
+
+  // 2. Download room image
+  const roomResponse = await fetch(input.roomImageUrl)
+  if (!roomResponse.ok) throw new Error('Failed to download room image')
+  const roomBuffer = Buffer.from(await roomResponse.arrayBuffer())
+
+  // 3. Build final prompt
+  const finalPrompt = buildPrompt(modelJson, promptText)
+
+  // 4. Call OpenAI Images API
+  const roomFile = await toFile(roomBuffer, 'room.jpg', { type: 'image/jpeg' })
+  const masterFile = await toFile(masterBuffer, 'master.jpg', { type: 'image/jpeg' })
+
+  const response = await openai.images.edit({
+    model: 'gpt-image-1',
+    image: [roomFile, masterFile],
+    prompt: finalPrompt,
+    n: 1,
+    size: '1024x1024',
+  })
+
+  const imageBase64 = response.data?.[0]?.b64_json
+  if (!imageBase64) throw new Error('No image returned from OpenAI')
+
+  // 5. Upload result to Supabase Storage
+  const imageBuffer = Buffer.from(imageBase64, 'base64')
+  const resultPath = `${crypto.randomUUID()}.jpg`
+
+  const { error: uploadError } = await supabase.storage
+    .from('renders')
+    .upload(resultPath, imageBuffer, { contentType: 'image/jpeg' })
+
+  if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`)
+
+  // 6. Return public URL
+  const { data: { publicUrl } } = supabase.storage
+    .from('renders')
+    .getPublicUrl(resultPath)
+
+  return publicUrl
 }

@@ -6,8 +6,8 @@ describe('renderFlooring', () => {
     await expect(
       renderFlooring({
         roomImageUrl: 'https://example.com/room.jpg',
-        flooringImageUrl: 'https://example.com/floor.jpg',
+        modelId: '2410',
       })
-    ).rejects.toThrow('AI service not yet configured')
+    ).rejects.toThrow('OPENAI_API_KEY is not configured')
   })
 })

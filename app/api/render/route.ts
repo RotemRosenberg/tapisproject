@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
 
   const { data: product } = await supabase
     .from('products')
-    .select('image_url')
+    .select('model_id')
     .eq('id', productId)
     .single()
 
@@ -63,11 +63,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Product not found' }, { status: 404 })
   }
 
+  if (!product.model_id) {
+    return NextResponse.json({ error: 'Product has no model assigned' }, { status: 400 })
+  }
+
   let resultUrl: string
   try {
     resultUrl = await renderFlooring({
       roomImageUrl: roomUrlData.publicUrl,
-      flooringImageUrl: product.image_url,
+      modelId: product.model_id,
     })
   } catch (err) {
     return NextResponse.json(

@@ -10,6 +10,7 @@ interface ProductFormProps {
 export default function ProductForm({ onSuccess }: ProductFormProps) {
   const [name, setName] = useState('')
   const [category, setCategory] = useState<ProductCategory>('parquet')
+  const [modelId, setModelId] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
   const [error, setError] = useState('')
@@ -18,7 +19,8 @@ export default function ProductForm({ onSuccess }: ProductFormProps) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!file) { setError('בחר תמונה'); return }
+    if (!file) { setError('בחר תמונת קטלוג'); return }
+    if (!modelId.trim()) { setError('הכנס Model ID'); return }
     setStatus('loading')
     setError('')
 
@@ -30,11 +32,11 @@ export default function ProductForm({ onSuccess }: ProductFormProps) {
 
     const { error: insertError } = await supabase
       .from('products')
-      .insert({ name, category, image_url: publicUrl })
+      .insert({ name, category, image_url: publicUrl, model_id: modelId.trim() })
 
     if (insertError) { setError(insertError.message); setStatus('error'); return }
 
-    setName(''); setFile(null); setCategory('parquet')
+    setName(''); setFile(null); setCategory('parquet'); setModelId('')
     setStatus('idle')
     onSuccess()
   }
@@ -44,11 +46,19 @@ export default function ProductForm({ onSuccess }: ProductFormProps) {
       <h3 className="font-semibold">הוסף מוצר חדש</h3>
       <input
         type="text"
-        placeholder="שם המוצר"
+        placeholder="שם המוצר (לדוג׳ HAVANA)"
         value={name}
         onChange={e => setName(e.target.value)}
         required
         className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+      />
+      <input
+        type="text"
+        placeholder="Model ID (לדוג׳ 2410)"
+        value={modelId}
+        onChange={e => setModelId(e.target.value)}
+        required
+        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono"
       />
       <select
         value={category}
@@ -59,13 +69,16 @@ export default function ProductForm({ onSuccess }: ProductFormProps) {
         <option value="carpet">שטיח</option>
         <option value="other">אחר</option>
       </select>
-      <input
-        type="file"
-        accept="image/*"
-        onChange={e => setFile(e.target.files?.[0] ?? null)}
-        required
-        className="w-full text-sm"
-      />
+      <div>
+        <p className="text-xs text-gray-500 mb-1">תמונת קטלוג (catalog.jpg — מוצגת ללקוח)</p>
+        <input
+          type="file"
+          accept="image/*"
+          onChange={e => setFile(e.target.files?.[0] ?? null)}
+          required
+          className="w-full text-sm"
+        />
+      </div>
       {error && <p className="text-red-500 text-xs">{error}</p>}
       <button
         type="submit"
