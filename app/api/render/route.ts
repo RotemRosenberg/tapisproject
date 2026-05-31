@@ -51,7 +51,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to upload room image' }, { status: 500 })
   }
 
-  const { data: roomUrlData } = adminClient.storage.from('room-images').getPublicUrl(roomPath)
+  const { data: signedUrlData, error: signedUrlError } = await adminClient.storage
+    .from('room-images')
+    .createSignedUrl(roomPath, 3600)
+
+  if (signedUrlError || !signedUrlData) {
+    return NextResponse.json({ error: 'Failed to create signed URL' }, { status: 500 })
+  }
 
   const { data: product } = await supabase
     .from('products')
@@ -70,7 +76,7 @@ export async function POST(request: NextRequest) {
   let resultUrl: string
   try {
     resultUrl = await renderFlooring({
-      roomImageUrl: roomUrlData.publicUrl,
+      roomImageUrl: signedUrlData.signedUrl,
       modelId: product.model_id,
     })
   } catch (err) {
@@ -83,7 +89,7 @@ export async function POST(request: NextRequest) {
   await adminClient.from('renders').insert({
     user_id: user.id,
     product_id: productId,
-    room_image_url: roomUrlData.publicUrl,
+    room_image_url: signedUrlData.signedUrl,
     result_url: resultUrl,
   })
 
