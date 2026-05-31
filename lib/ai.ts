@@ -7,6 +7,7 @@ interface ModelJson {
   model_name: string
   collection: string
   required_prompt_line: string
+  source_of_truth_policy?: { primary_file?: string }
   product: {
     plank_width_mm: number
     plank_length_mm: number
@@ -43,19 +44,32 @@ export async function renderFlooring(input: {
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
   const supabase = createAdminClient()
 
-  // 1. Load model assets from Supabase Storage
-  const [modelJsonRes, promptRes, masterRes] = await Promise.all([
+  // 1. Load model.json and prompt first
+  const [modelJsonRes, promptRes] = await Promise.all([
     supabase.storage.from('models').download(`${input.modelId}/model.json`),
     supabase.storage.from('models').download(`${input.modelId}/prompt.txt`),
-    supabase.storage.from('models').download(`${input.modelId}/approved_master.jpg`),
   ])
 
   if (modelJsonRes.error) throw new Error(`Model not found: ${input.modelId}`)
   if (promptRes.error) throw new Error(`Prompt not found for model: ${input.modelId}`)
-  if (masterRes.error) throw new Error(`Master image not found for model: ${input.modelId}`)
 
   const modelJson: ModelJson = JSON.parse(await modelJsonRes.data.text())
   const promptText = await promptRes.data.text()
+
+  // 2. Load master image — filename from model.json or fallback
+  const masterFilename = modelJson.source_of_truth_policy?.primary_file ?? 'approved_master.jpg'
+  let masterRes = await supabase.storage.from('models').download(`${input.modelId}/${masterFilename}`)
+
+  // Try .jpeg extension if .jpg not found (and vice versa)
+  if (masterRes.error) {
+    const alt = masterFilename.endsWith('.jpg')
+      ? masterFilename.replace('.jpg', '.jpeg')
+      : masterFilename.replace('.jpeg', '.jpg')
+    masterRes = await supabase.storage.from('models').download(`${input.modelId}/${alt}`)
+  }
+
+  if (masterRes.error) throw new Error(`Master image not found for model: ${input.modelId}`)
+
   const masterBuffer = Buffer.from(await masterRes.data.arrayBuffer())
 
   // 2. Download room image
